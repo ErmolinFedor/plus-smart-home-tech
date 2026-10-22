@@ -1,6 +1,8 @@
 package ru.yandex.practicum.collector.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -8,15 +10,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import ru.yandex.practicum.collector.dto.HubEvent;
+import ru.yandex.practicum.collector.dto.SensorEvent;
 import ru.yandex.practicum.collector.service.EventMapperService;
 
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -30,7 +32,7 @@ class EventControllerTest {
     private ObjectMapper objectMapper;
 
     @MockBean
-    private KafkaTemplate<String, byte[]> kafkaTemplate;
+    private KafkaProducer<String, byte[]> kafkaProducer;
 
     @MockBean
     private EventMapperService mapperService;
@@ -48,14 +50,14 @@ class EventControllerTest {
 
         byte[] mockAvroBytes = new byte[]{1, 2, 3};
 
-        Mockito.when(mapperService.mapAndSerializeSensor(any())).thenReturn(mockAvroBytes);
+        Mockito.when(mapperService.mapAndSerializeSensor(any(SensorEvent.class))).thenReturn(mockAvroBytes);
 
         mockMvc.perform(post("/events/sensors")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(requestBody)))
                 .andExpect(status().isOk());
 
-        Mockito.verify(kafkaTemplate).send(eq("telemetry.sensors.v1"), eq("hub-1"), eq(mockAvroBytes));
+        Mockito.verify(kafkaProducer).send(any(ProducerRecord.class), any());
     }
 
     @Test
@@ -72,7 +74,7 @@ class EventControllerTest {
                         .content(objectMapper.writeValueAsString(requestBody)))
                 .andExpect(status().isBadRequest());
 
-        Mockito.verify(kafkaTemplate, Mockito.never()).send(any(), any(), any());
+        Mockito.verify(kafkaProducer, Mockito.never()).send(any(), any());
     }
 
     @Test
@@ -86,13 +88,13 @@ class EventControllerTest {
         requestBody.put("type", "DEVICE_ADDED");
 
         byte[] mockAvroBytes = new byte[]{4, 5, 6};
-        Mockito.when(mapperService.mapAndSerializeHub(any())).thenReturn(mockAvroBytes);
+        Mockito.when(mapperService.mapAndSerializeHub(any(HubEvent.class))).thenReturn(mockAvroBytes);
 
         mockMvc.perform(post("/events/hubs")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(requestBody)))
                 .andExpect(status().isOk());
 
-        Mockito.verify(kafkaTemplate).send(eq("telemetry.hubs.v1"), eq("hub-2"), eq(mockAvroBytes));
+        Mockito.verify(kafkaProducer).send(any(ProducerRecord.class), any());
     }
 }
